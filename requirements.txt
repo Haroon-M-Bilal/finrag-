@@ -1,0 +1,29 @@
+# Tested, working pinned versions (Windows + CUDA 12.1, Python 3.11)
+# Install torch first, separately:
+#   pip install torch --index-url https://download.pytorch.org/whl/cu121
+
+transformers==4.44.2
+tokenizers==0.19.1
+datasets==2.21.0
+huggingface-hub==0.24.6
+sentence-transformers==3.0.1
+accelerate==0.33.0
+peft==0.12.0
+bitsandbytes==0.49.2
+
+faiss-cpu
+rank-bm25
+ranx
+
+rouge-score
+sacrebleu
+bert-score
+
+gradio
+scikit-learn
+beautifulsoup4
+lxml
+matplotlib
+pandas
+pyarrow
+numpy

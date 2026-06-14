@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# Large data & models (regenerate via scripts; see README)
+data/
+checkpoints/
+*.npy
+*.zip
+*.parquet
+
+# HF cache
+.cache/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temp training output
+checkpoints/_qlora_tmp/
+
+# Keep: src/, results/*.md, results/*.json, results/figures/*.png,
+#       app.py, requirements.txt, config.yaml, README.md
