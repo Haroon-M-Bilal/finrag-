@@ -1,6 +1,6 @@
 # FinRAG — Domain-Adapted RAG for Financial Report Question Answering
 
-**Authors:** Haroon Bilal ([@Haroon-M-Bilal](https://github.com/Haroon-M-Bilal)) and Muhammad Sarwar ([@Muhammad2481632](https://github.com/Muhammad2481632)) — joint project, both contributed throughout.
+**Authors:** Haroon Bilal ([@Haroon-M-Bilal](https://github.com/Haroon-M-Bilal)) and Muhammad Bin Sarwar ([@Muhammad2481632](https://github.com/Muhammad2481632)) — joint project, both contributed throughout.
 
 Fine-tuning the retrieval and generation components of a RAG system on financial
 filings (S&P 500 10-Ks) and measuring the gains with proper retrieval metrics.
