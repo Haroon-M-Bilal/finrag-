@@ -212,6 +212,20 @@ def main():
         q_tick[qid] = best_t
         if second_v > 0 and best_v / second_v < AMBIG_MARGIN:
             ambiguous.append(qid)
+    # override: if the query names exactly one ticker in caps, trust it over TF-IDF
+    valid = set(by_tick)
+    qtext = {str(r["_id"]): str(r["text"]) for _, r in df.iterrows()}
+    amb_set, overridden = set(ambiguous), 0
+    for qid in list(q_tick):
+        named = set(re.findall(r"\b[A-Z][A-Z0-9\-]{1,5}\b", qtext.get(qid, ""))) & valid
+        if len(named) == 1:
+            t = named.pop()
+            if q_tick[qid] != t:
+                overridden += 1
+            q_tick[qid] = t
+            amb_set.discard(qid)
+    ambiguous = sorted(amb_set)
+    print(f"  ticker-in-query override: {overridden} reassigned")
     print(f"  resolved {len(q_tick)} questions, {len(ambiguous)} ambiguous")
 
     refs_by_tick: dict[str, list[tuple[str, int]]] = {}
