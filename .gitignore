@@ -1,12 +1,13 @@
-# Python
+﻿# Python
 __pycache__/
 *.pyc
 venv/
 .venv/
 
-# Large data & models (regenerate via scripts; see README)
-data/
-checkpoints/
+# Large regenerable data & models
+# NOTE: leading slash required - bare "data/" also matches src/data/
+/data/
+/checkpoints/
 *.npy
 *.zip
 *.parquet
@@ -14,12 +15,20 @@ checkpoints/
 # HF cache
 .cache/
 
+# Logs (grow unbounded across reruns)
+/logs/
+
+# Third-party PDF - reference by URL, do not redistribute
+/Base paper/
+
+# Own draft PDFs - regenerable from paper.tex, carry void v1 numbers
+/*.pdf
+
 # OS
 .DS_Store
 Thumbs.db
 
-# Temp training output
-checkpoints/_qlora_tmp/
-
-# Keep: src/, results/*.md, results/*.json, results/figures/*.png,
-#       app.py, requirements.txt, config.yaml, README.md
+# Committed on purpose - do not exclude:
+#   /meta/       frozen split, chunking config, manifests
+#   src/data/    corpus prep + split scripts
+#   results/     metrics, predictions, run files
