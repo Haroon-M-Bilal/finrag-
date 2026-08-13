@@ -239,7 +239,13 @@ def main():
     print("\nPASS B: labelling by union coverage...")
     qrels: dict[str, dict[str, int]] = {}
     cover_hit = cover_all = 0
-
+# drop questions whose filing could not be resolved confidently
+    # (measured: ~28% correct vs ~95% for resolved ones)
+    drop = set(ambiguous)
+    refs_by_tick = {t: [(q, k) for q, k in v if q not in drop]
+                    for t, v in refs_by_tick.items()}
+    refs_by_tick = {t: v for t, v in refs_by_tick.items() if v}
+    print(f"  dropped {len(drop)} ambiguous questions")
     for n_done, (tick, items) in enumerate(refs_by_tick.items(), 1):
         idxs = by_tick.get(tick, [])
         if not idxs:
