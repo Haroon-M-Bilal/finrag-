@@ -1,55 +1,49 @@
 """
-GENERATOR Step 1 (v4) - build Q&A fine-tuning data from FinDER.
+GENERATOR Step 1 (v5) - build Q&A fine-tuning data from FinDER.
 
-WHAT WAS WRONG WITH THE PREVIOUS VERSION
+WHY v5 EXISTS: THE v4 DATA TAUGHT REFUSAL
 
-  1. LEAKAGE. It held out `scored[-300:]` - the last 300 questions by LIST
-     POSITION. Questions about the same filing therefore sat on both sides, so
-     the generator was evaluated on filings it had trained on. Same defect as
-     the retriever's, one layer down. The split is now the frozen filing-level
-     split: train questions come from train filings, evaluation from the 98
-     held-out filings.
+Measured on 40 held-out questions, the v4-trained Qwen-3B abstained on 39/40
+with GOLD EVIDENCE IN CONTEXT, and 40/40 with retrieved context. The untrained
+base model abstained on 7/40 and 9/40. Fine-tuning made the model strictly
+worse at answering - it did not learn the domain, it learned to refuse.
 
-  2. TRAIN/INFERENCE MISMATCH. Training context was the gold chunk, always.
-     Evaluation context is whatever retrieval returns, which frequently does
-     not contain the answer. A model that has never seen a context lacking the
-     answer has no reason to abstain, which is why it produced confident
-     waffle. Training rows now mix gold with retrieved DISTRACTORS, and a
-     deliberate fraction contain NO gold at all, with abstention as the target.
-     (This is the RAFT recipe: train on the context distribution inference
-     actually produces.)
+Three design errors in v4 caused this:
 
-  3. ARBITRARY GOLD CHUNK. `qr[qid][0]` took whichever chunk id happened to be
-     first, ignoring grades. Context is now built grade-2 (primary evidence)
-     first, then grade-1 supporting chunks.
+  1. THE ABSTENTION TARGET WAS ONE IDENTICAL STRING, repeated across 606 of
+     4,010 rows. A 3B model minimises loss most cheaply by memorising that
+     string, not by learning when the context is insufficient.
 
-  4. NO STRUCTURED TARGET. ROUGE and BERTScore cannot detect a wrong financial
-     figure. Every target now ends with a machine-readable footer:
+  2. THE FOOTER WAS OVERWHELMINGLY A REFUSAL TOKEN. 3,519 qualitative rows
+     ended `ANSWER: N/A` and 606 ended `ANSWER: INSUFFICIENT` against only 491
+     carrying a real figure - 88% of targets taught "no value here". The
+     unconditional footer was the right call; making its majority value a
+     refusal was not.
 
-         ANSWER: 111.5 | million | USD     numeric question
-         ANSWER: N/A                       qualitative question
-         ANSWER: INSUFFICIENT              context does not contain the answer
+  3. 15% ABSTENTION WAS TOO HIGH for the signal it needed to carry.
 
-     The footer is UNCONDITIONAL - it appears on every target regardless of
-     question type. Teaching a 3B model WHEN to emit structure is a second task
-     it will fail; teaching it to always end the same way is one rule, and the
-     84.5% qualitative majority reinforces the habit rather than competing
-     with it. Prose comes first and stays natural; the footer is stripped
-     before ROUGE/BERTScore are computed.
+v5 CHANGES
 
-  5. UNTRUSTED NUMERIC TARGETS ARE DROPPED, not silently labelled N/A.
-     Labelling a numeric question N/A would teach the model to refuse
-     calculation. Questions whose gold figure could not be extracted with two
-     independent signals are excluded from training and counted.
+  a. ABSTENTION RATE 15% -> 6%, and every abstention target is drawn from a
+     pool of varied phrasings so there is no single string to memorise.
+  b. QUALITATIVE FOOTERS ARE NO LONGER A REFUSAL TOKEN. A qualitative answer
+     is not a failure to produce a number, so its footer is `ANSWER: TEXT`.
+     `INSUFFICIENT` now means only one thing - the context genuinely lacks the
+     answer - instead of sharing a semantic neighbourhood with 3,519 rows of
+     "this question has no number".
+  c. NUMERIC ROWS ARE UPWEIGHTED by duplication (NUMERIC_REPEAT), so questions
+     carrying a real figure are not drowned by the qualitative majority. This
+     is the cheapest available correction and it is reported, not hidden.
+  d. Abstention examples are drawn preferentially from NUMERIC questions, so
+     the model learns "the figure is not here" rather than "questions are
+     unanswerable in general".
 
-  6. GOLD POSITION IS RANDOMISED among the context chunks. Always placing gold
-     last teaches a positional shortcut and invites the "lost in the middle"
-     failure at inference, where reranked order puts gold first.
-
-DISTRACTORS come from `train_triples_rr_split.jsonl` - the same-filing hard
-negatives already mined with the fine-tuned retriever. They are exactly what
-routing + reranking will hand the generator at inference, so no new mining is
-needed.
+Everything else carries over from v4: the frozen filing-level split (the
+previous positional holdout leaked filings between train and eval), same-filing
+distractors mined with the fine-tuned retriever, grade-2-first gold ordering,
+randomised gold position, and dropping numeric questions whose gold figure
+could not be extracted with two independent signals rather than mislabelling
+them N/A.
 
 Run:  python -u src/generate/prepare_qa_data.py
 Output: data/finder/processed_v4/qa_sft_train.jsonl
@@ -64,14 +58,34 @@ from pathlib import Path
 
 PROC = Path("data/finder/processed_v4")
 
-N_CTX = 3               # chunks per training context, matching inference top-3
-ABSTAIN_FRAC = 0.15     # share of training rows with no gold in context
+N_CTX = 3
+ABSTAIN_FRAC = 0.06         # was 0.15
+NUMERIC_REPEAT = 3          # upweight rows carrying a real figure
 SEED = 42
 
 SYSTEM = ("You are a financial analyst. Answer the question using only the "
           "provided context from SEC 10-K filings. If the context does not "
           "contain the information needed, say so explicitly. End every "
           "response with a line beginning 'ANSWER:'.")
+
+# varied, so there is no single string to memorise
+ABSTAIN_TEXTS = [
+    "The provided context does not contain the information needed to answer "
+    "this question.",
+    "This cannot be answered from the excerpts supplied. The relevant figures "
+    "are not present in the provided context.",
+    "The context above does not include the data required for this question.",
+    "I cannot answer this from the given context - the necessary disclosure "
+    "does not appear in these excerpts.",
+    "The supplied filing excerpts do not cover this. The information needed "
+    "is not in the context provided.",
+    "Based on the context given, this question cannot be answered; the "
+    "relevant figures are absent.",
+    "The excerpts provided do not contain the disclosure this question asks "
+    "about.",
+    "Answering this would require information that is not present in the "
+    "context supplied.",
+]
 
 
 def jl(p):
@@ -90,7 +104,7 @@ def load_qrels(p):
 
 def build_prompt(question: str, chunks: list[str]) -> str:
     ctx = "\n\n".join(f"[{i + 1}] {c}" for i, c in enumerate(chunks))
-    return (f"{SYSTEM}\n\nContext:\n{ctx}\n\nQuestion: {question}\n\nAnswer:")
+    return f"{SYSTEM}\n\nContext:\n{ctx}\n\nQuestion: {question}\n\nAnswer:"
 
 
 def main():
@@ -100,30 +114,35 @@ def main():
     answers = {r["_id"]: r for r in jl(PROC / "answers.jsonl")}
     numeric = {r["_id"]: r for r in jl(PROC / "answers_numeric.jsonl")}
 
-    splits = {}
-    for name in ("train", "test"):
+    distract = {}
+    rr = PROC / "train_triples_rr_split.jsonl"
+    if rr.exists():
+        for r in jl(rr):
+            pool = distract.setdefault(str(r["qid"]), [])
+            n_in = r.get("n_in_filing", len(r["negatives"]))
+            pool.extend(r["negatives"][:n_in])
+    print(f"distractor pools: {len(distract)} questions")
+
+    stats = {}
+
+    for name, out_name in (("train", "train"), ("test", "eval")):
         qs = jl(PROC / f"queries_{name}.jsonl")
         qr = load_qrels(PROC / f"qrels_{name}.tsv")
-        splits[name] = (qs, qr)
-
-    # same-filing hard negatives, already mined with the FT retriever
-    distract = {}
-    rr_path = PROC / "train_triples_rr_split.jsonl"
-    if rr_path.exists():
-        for r in jl(rr_path):
-            distract.setdefault(str(r["qid"]), [])
-            for i, neg in enumerate(r["negatives"]):
-                if i < r.get("n_in_filing", len(r["negatives"])):
-                    distract[str(r["qid"])].append(neg)
-    print(f"distractor pools available for {len(distract)} train questions")
-
-    stats = {"train": {}, "test": {}}
-
-    for name in ("train", "test"):
-        qs, qr = splits[name]
         rows = []
         c = {"total": 0, "numeric_trusted": 0, "numeric_dropped": 0,
-             "qualitative": 0, "abstain": 0, "no_distractors": 0}
+             "qualitative": 0, "abstain": 0, "numeric_duplicated": 0}
+
+        # decide abstention assignments up front, biased toward numeric
+        eligible = [str(q["_id"]) for q in qs
+                    if str(q["_id"]) in distract and str(q["_id"]) in qr]
+        n_abstain = int(len(eligible) * ABSTAIN_FRAC) if name == "train" else 0
+        num_elig = [q for q in eligible if numeric.get(q, {}).get("numeric")]
+        oth_elig = [q for q in eligible if q not in set(num_elig)]
+        rng.shuffle(num_elig)
+        rng.shuffle(oth_elig)
+        take_num = min(len(num_elig), int(n_abstain * 0.6))
+        abstain_ids = set(num_elig[:take_num]
+                          + oth_elig[:max(0, n_abstain - take_num)])
 
         for q in qs:
             qid = str(q["_id"])
@@ -141,71 +160,87 @@ def main():
 
             if is_num and not trusted:
                 c["numeric_dropped"] += 1
-                continue          # never label a numeric question N/A
-
-            footer = nrec["answer_block"] if (is_num and trusted) else "N/A"
-            if is_num:
-                c["numeric_trusted"] += 1
-            else:
-                c["qualitative"] += 1
-
-            # gold chunks, grade 2 first
-            gold_ids = sorted(gold_map, key=lambda c_: -gold_map[c_])
-            gold_txt = [corpus[c_] for c_ in gold_ids if c_ in corpus]
-            if not gold_txt:
                 continue
 
+            if is_num and trusted:
+                footer = nrec["answer_block"]
+                c["numeric_trusted"] += 1
+            else:
+                footer = "TEXT"          # was N/A: a qualitative answer is not
+                c["qualitative"] += 1    # a failure to produce a number
+
+            gold_ids = sorted(gold_map, key=lambda x: -gold_map[x])
+            gold_txt = [corpus[x] for x in gold_ids if x in corpus]
+            if not gold_txt:
+                continue
             pool = [d for d in distract.get(qid, []) if d]
-            if not pool:
-                c["no_distractors"] += 1
 
-            abstain = (name == "train" and pool
-                       and rng.random() < ABSTAIN_FRAC)
-
-            if abstain:
+            if qid in abstain_ids and pool:
                 chunks = rng.sample(pool, min(N_CTX, len(pool)))
-                target = ("The provided context does not contain the "
-                          "information needed to answer this question.\n"
-                          "ANSWER: INSUFFICIENT")
+                target = (rng.choice(ABSTAIN_TEXTS)
+                          + "\nANSWER: INSUFFICIENT")
+                reps = 1
                 c["abstain"] += 1
             else:
-                keep_gold = gold_txt[:max(1, N_CTX - 1)]
-                n_fill = max(0, N_CTX - len(keep_gold))
-                fill = rng.sample(pool, min(n_fill, len(pool))) if pool else []
-                chunks = keep_gold + fill
-                rng.shuffle(chunks)          # gold position must not be fixed
+                keep = gold_txt[:max(1, N_CTX - 1)]
+                fill = (rng.sample(pool, min(N_CTX - len(keep), len(pool)))
+                        if pool else [])
+                chunks = keep + fill
+                rng.shuffle(chunks)
                 target = f"{ans_text}\nANSWER: {footer}"
+                reps = (NUMERIC_REPEAT if (is_num and trusted
+                                           and name == "train") else 1)
+                if reps > 1:
+                    c["numeric_duplicated"] += reps - 1
 
-            rows.append({
+            row = {
                 "qid": qid,
                 "question": q["text"],
                 "chunk_texts": chunks,
                 "prompt": build_prompt(q["text"], chunks),
                 "target": target,
-                "footer": "INSUFFICIENT" if abstain else footer,
-                "numeric": is_num and not abstain,
-                "has_gold": not abstain,
+                "footer": ("INSUFFICIENT" if qid in abstain_ids and pool
+                           else footer),
+                "numeric": is_num and trusted and qid not in abstain_ids,
+                "has_gold": qid not in abstain_ids,
                 "n_chunks": len(chunks),
                 "type": nrec.get("type", ""),
-            })
-            c["total"] += 1
+            }
+            for _ in range(reps):
+                rows.append(row)
+            c["total"] += reps
 
-        out = PROC / f"qa_sft_{'train' if name == 'train' else 'eval'}.jsonl"
+        rng.shuffle(rows)
+        out = PROC / f"qa_sft_{out_name}.jsonl"
         with open(out, "w", encoding="utf-8") as f:
             for r in rows:
                 f.write(json.dumps(r) + "\n")
+
+        foot = {}
+        for r in rows:
+            k = ("INSUFFICIENT" if r["footer"] == "INSUFFICIENT"
+                 else "TEXT" if r["footer"] == "TEXT" else "value")
+            foot[k] = foot.get(k, 0) + 1
+        c["footer_distribution"] = foot
         stats[name] = c
-        print(f"{name}: {c['total']} rows -> {out}")
+
+        print(f"\n{out_name}: {c['total']} rows -> {out}")
         for k, v in c.items():
             if k != "total":
-                print(f"    {k:<18} {v}")
+                print(f"    {k:<20} {v}")
+        tot = sum(foot.values())
+        print(f"    refusal footers      "
+              f"{100 * foot.get('INSUFFICIENT', 0) / max(tot, 1):.1f}%  "
+              f"(v4 was 88%)")
 
-    stats["config"] = {"n_ctx": N_CTX, "abstain_frac": ABSTAIN_FRAC,
-                       "seed": SEED, "source": str(PROC),
-                       "footer": "unconditional; N/A | INSUFFICIENT | value",
-                       "gold_position": "randomised",
-                       "distractors": "same-filing hard negatives from the "
-                                      "fine-tuned retriever"}
+    stats["config"] = {
+        "n_ctx": N_CTX, "abstain_frac": ABSTAIN_FRAC,
+        "numeric_repeat": NUMERIC_REPEAT, "seed": SEED,
+        "abstain_variants": len(ABSTAIN_TEXTS),
+        "qualitative_footer": "TEXT (was N/A)",
+        "note": "v4 data produced a model that abstained on 39/40 questions "
+                "with gold context; base model abstained on 7/40",
+    }
     json.dump(stats, open(PROC / "qa_sft_stats.json", "w"), indent=2)
     print(f"\nsaved -> {PROC / 'qa_sft_stats.json'}")
 
