@@ -1,5 +1,5 @@
 """
-GENERATION EVAL (v6) - two context conditions, numeric exact-match, crash-safe.
+GENERATION EVAL (v7) - two context conditions, numeric exact-match, crash-safe.
 
 DESIGN
 
@@ -25,27 +25,31 @@ DESIGN
      prediction is already cached, the model is not loaded at all and the run
      is a rescore taking seconds.
 
+  7. BASE CONDITIONS ARE SUBSAMPLED to BASE_SUBSAMPLE questions. Measured on
+     Qwen-3B, the untrained model produced a parseable ANSWER footer on 0.3% of
+     questions, so its numeric exact-match is structurally zero and it
+     contributes only ROUGE/BERTScore - for which a few hundred questions is
+     ample. The fine-tuned conditions still run the full test set. This cuts
+     roughly a third of generation time.
+
 HISTORY OF SCORING FIXES
 
   v5a strip_footer deleted everything from the FIRST "ANSWER" onward. The base
       model tends to open its reply with "ANSWER: ...", so its whole output was
-      stripped to an empty string, producing artificially low base scores. It
-      now removes only a trailing footer line and a leading "ANSWER:" prefix.
+      stripped to an empty string, producing artificially low base scores.
 
   v5b parse_footer did not recognise the "TEXT" footer used for qualitative
       answers, so every qualitative answer counted as a malformed number. It
       also took the first "ANSWER" match rather than the last.
 
-  v6  ROUNDING-AWARE NUMERIC MATCH. A fixed 0.1% relative tolerance rejected
-      correct answers stated at lower precision: gold 2.31%, predicted 2.3% was
-      scored wrong. FinDER rounds its own answers, so a prediction is now
-      correct if it equals the gold value rounded to the precision the
-      prediction itself states. Inspected wrong answers that remain wrong under
-      this rule (38.6% predicted as 0.68; 12,120 as 13,676; 6.56% as 0.6%) are
-      genuine arithmetic failures, not tolerance artefacts.
+  v6  ROUNDING-AWARE NUMERIC MATCH. A fixed 0.1% tolerance rejected correct
+      answers stated at lower precision (gold 2.31%, predicted 2.3%). FinDER
+      rounds its own answers, so a prediction is correct if it equals the gold
+      value rounded to the precision the prediction itself states.
 
 Usage:
     python -u src/generate/run_generation_eval.py Qwen/Qwen2.5-3B-Instruct
+    python -u src/generate/run_generation_eval.py mistralai/Mistral-7B-Instruct-v0.3
     python -u src/generate/run_generation_eval.py Qwen/Qwen2.5-3B-Instruct 40
 """
 from __future__ import annotations
@@ -77,6 +81,7 @@ TOPK_CTX = 3
 MAX_NEW = 768
 BATCH = 4
 FLUSH = 40
+BASE_SUBSAMPLE = 300
 DEV = "cuda" if torch.cuda.is_available() else "cpu"
 
 SYS = ("You are a financial analyst. Answer the question using only the "
@@ -209,7 +214,9 @@ def main():
     trusted = {q for q, r in numeric.items()
                if r.get("tier") in ("anchored_verified", "single_figure")}
     n_trusted = sum(1 for r in rows if r["qid"] in trusted)
+    n_base = min(BASE_SUBSAMPLE, len(rows))
     print(f"eval questions: {len(rows)}   numeric (trusted): {n_trusted}")
+    print(f"base conditions subsampled to {n_base} questions")
 
     cache_path = RESULTS / f"preds_{TAG}_v4.json"
     cache = json.load(open(cache_path)) if cache_path.exists() else {}
@@ -221,8 +228,12 @@ def main():
         for ft in (True, False):
             keys.append((cond, ft, f"{cond}_{'ft' if ft else 'base'}"))
 
-    need_model = any(any(r["qid"] not in cache.get(k, {}) for r in rows)
-                     for _, _, k in keys)
+    def pool_for(use_ft):
+        return rows if use_ft else rows[:n_base]
+
+    need_model = any(any(r["qid"] not in cache.get(k, {})
+                         for r in pool_for(ft))
+                     for _, ft, k in keys)
 
     model = tok = None
     if need_model:
@@ -258,9 +269,10 @@ def main():
 
     def generate(condition, use_ft, key):
         done = cache.get(key, {})
-        todo = [r for r in rows if r["qid"] not in done]
+        pool = pool_for(use_ft)
+        todo = [r for r in pool if r["qid"] not in done]
         if not todo:
-            print(f"  {key}: cached")
+            print(f"  {key}: cached ({len(done)})")
             return done
         print(f"  {key}: {len(todo)} to generate")
         for s in range(0, len(todo), BATCH):
@@ -343,15 +355,18 @@ def main():
     # -------------------------------------------------------------- output
     cols = ["ROUGE-1", "ROUGE-2", "ROUGE-L", "BLEU", "BERTScore-F1"]
     L = [f"# Generation eval: {BASE}", "",
-         f"{len(rows)} held-out test questions from filings never seen in "
-         f"training. `gold` = evidence chunks (ceiling); `retrieved` = "
-         f"top-{TOPK_CTX} from the deployed pipeline. Footer lines are "
-         f"stripped before ROUGE/BERTScore.", "",
-         "| condition | " + " | ".join(cols) + " |",
-         "|" + "---|" * (len(cols) + 1)]
+         f"Held-out test questions from filings never seen in training. "
+         f"`gold` = evidence chunks (ceiling); `retrieved` = top-{TOPK_CTX} "
+         f"from the deployed pipeline. Footer lines are stripped before "
+         f"ROUGE/BERTScore. Base conditions are subsampled to {n_base} "
+         f"questions (base emits a parseable footer on <1% of questions, so "
+         f"its numeric score is structurally zero).", "",
+         "| condition | n | " + " | ".join(cols) + " |",
+         "|" + "---|" * (len(cols) + 2)]
     for k in sorted(report):
         v = report[k]
-        L.append(f"| {k} | " + " | ".join(f"{v[c]:.4f}" for c in cols) + " |")
+        L.append(f"| {k} | {v['n']} | "
+                 + " | ".join(f"{v[c]:.4f}" for c in cols) + " |")
 
     L += ["", "## Structured output", "",
           "| condition | strict fmt | parsed | abstain | truncated |",
@@ -380,8 +395,8 @@ def main():
     print("\n" + out)
     (RESULTS / f"generation_{TAG}_v4.md").write_text(out, encoding="utf-8")
     json.dump({"model": BASE, "max_new_tokens": MAX_NEW, "topk_ctx": TOPK_CTX,
-               "n_questions": len(rows), "numeric_rule": "rounding-aware",
-               "report": report},
+               "n_questions": len(rows), "base_subsample": n_base,
+               "numeric_rule": "rounding-aware", "report": report},
               open(RESULTS / f"generation_{TAG}_v4.json", "w"), indent=2)
     print(f"saved -> results/generation_{TAG}_v4.md / .json")
 

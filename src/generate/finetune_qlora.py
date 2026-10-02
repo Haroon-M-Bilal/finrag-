@@ -9,30 +9,35 @@ Usage:
 DESIGN NOTES
 
   MAXLEN 3072. Measured on the rebuilt training data, prompt+target averages
-  1,915 tokens (max 3,026). The previous setting of 1024 fit ZERO examples, so
-  every target was truncated and no model ever saw a complete answer. 3072 was
-  measured at 8.78 GB peak on a 12 GB card with 4-bit + gradient checkpointing.
+  1,915 tokens for Qwen and 2,092 for Mistral. The previous setting of 1024 fit
+  ZERO examples, so every target was truncated. 3072 was measured at 8.78 GB
+  peak for Qwen-3B and 8.28 GB for Mistral-7B on a 12 GB card.
 
-  TRUNCATION NEVER TOUCHES THE TARGET. The old code did
-  `(prompt_ids + ans_ids)[:MAXLEN]`, cutting from the right - i.e. removing the
-  answer, the only part carrying gradient. The target is now reserved first and
+  TRUNCATION NEVER TOUCHES THE TARGET. The target is reserved first and
   context is trimmed around it by dropping whole chunks, never mid-sentence.
 
-  VALIDATION IS A SEEDED RANDOM SAMPLE. `rows[-200:]` took the last 200 rows in
-  query order, which follows filing order, so validation came from a handful of
-  filings and was not representative.
+  VALIDATION IS A SEEDED RANDOM SAMPLE, not the last 200 rows (which followed
+  filing order and so came from a handful of filings).
 
-  CRASH RESISTANCE. This machine has twice hit bugcheck 0x1E (0xc0000005) at
-  the checkpoint save. Mitigations:
-    - save_only_model=True skips the optimizer state, which is the largest and
-      fastest disk write and the most likely trigger. Cost: resume restarts the
-      optimizer rather than restoring it, which is acceptable at this scale.
-    - SAVE_EVERY raised to 100 and eval_steps to 50, reducing both the number
-      of save events and ~20 minutes of evaluation overhead.
-    - Checkpoints are validated before resume. A checkpoint interrupted
-      mid-write leaves no trainer_state.json; the old code trusted the newest
-      directory blindly and crashed on resume. Incomplete checkpoints are now
-      skipped, falling back to the newest complete one.
+RESUME CORRECTNESS
+
+  save_only_model is now FALSE, so checkpoints carry optimizer and learning-
+  rate scheduler state and a resumed run continues exactly. It had been set to
+  True on the guess that the large optimizer write triggered the machine's
+  blue screens. BlueScreenView later attributed 4 of 5 crashes to nvlddmkm.sys
+  (the NVIDIA display driver), fixed by a clean driver reinstall - so the
+  workaround was unnecessary, and it had a cost:
+
+  Resuming from a model-only checkpoint RESTARTS THE LEARNING-RATE SCHEDULE
+  FROM STEP 0. Measured on this project: the Qwen-3B resume from checkpoint-400
+  logged a learning rate of 8.33e-05 at step 410 - identical to step 10 of the
+  original run - i.e. warmup restarted and the final steps ran near peak LR.
+
+  For checkpoints already written without scheduler state, the schedule is now
+  FAST-FORWARDED to the checkpoint's step before training continues, and the
+  resulting learning rate is printed so it can be checked against the original
+  log. Adam's moment estimates still restart (they were not saved), which costs
+  a small transient bump but does not distort the schedule.
 """
 from __future__ import annotations
 
@@ -40,6 +45,7 @@ import json
 import random
 import shutil
 import sys
+import warnings
 from pathlib import Path
 
 import torch
@@ -128,6 +134,27 @@ class Collator:
                 "attention_mask": torch.tensor(am)}
 
 
+class ResumeTrainer(Trainer):
+    """
+    If resuming from a checkpoint that holds no scheduler state, advance the
+    freshly-created LR schedule to the checkpoint's step, so training continues
+    where it left off instead of restarting warmup.
+    """
+    resume_step = 0
+
+    def create_scheduler(self, num_training_steps, optimizer=None):
+        sched = super().create_scheduler(num_training_steps, optimizer)
+        if self.resume_step:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")   # step-before-optimizer notice
+                for _ in range(self.resume_step):
+                    sched.step()
+            print(f"  LR schedule fast-forwarded {self.resume_step} steps "
+                  f"-> lr {sched.get_last_lr()[0]:.4e}")
+            self.resume_step = 0
+        return sched
+
+
 def latest_checkpoint(d: Path):
     """Newest COMPLETE checkpoint. A crash mid-save leaves a partial folder."""
     if not d.exists():
@@ -193,16 +220,21 @@ def main():
         per_device_eval_batch_size=1,
         save_strategy="steps", save_steps=SAVE_EVERY, save_total_limit=2,
         save_safetensors=True,
-        save_only_model=True,      # skip optimizer state: large fast write,
-                                   # the most likely bugcheck trigger
+        save_only_model=False,     # keep optimizer + scheduler: exact resume
         seed=SEED,
     )
-    trainer = Trainer(model=model, args=args, train_dataset=train_data,
-                      eval_dataset=val_data, data_collator=Collator(tok))
+    trainer = ResumeTrainer(model=model, args=args, train_dataset=train_data,
+                            eval_dataset=val_data, data_collator=Collator(tok))
 
     resume = latest_checkpoint(CKPT_DIR)
     if resume:
-        print(f"RESUMING from {resume}")
+        step = int(resume.name.split("-")[-1])
+        if not (resume / "scheduler.pt").exists():
+            trainer.resume_step = step
+            print(f"RESUMING from {resume} (no scheduler state saved - "
+                  f"LR will be fast-forwarded to step {step})")
+        else:
+            print(f"RESUMING from {resume} (full state)")
         trainer.train(resume_from_checkpoint=str(resume))
     else:
         print("starting fresh")
