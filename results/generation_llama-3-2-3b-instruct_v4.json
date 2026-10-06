@@ -1,0 +1,102 @@
+{
+  "model": "meta-llama/Llama-3.2-3B-Instruct",
+  "max_new_tokens": 768,
+  "topk_ctx": 3,
+  "n_questions": 1044,
+  "base_subsample": 300,
+  "numeric_rule": "rounding-aware",
+  "report": {
+    "gold_ft": {
+      "ROUGE-1": 0.42964287683686136,
+      "ROUGE-2": 0.1546954244963582,
+      "ROUGE-L": 0.23121623145690573,
+      "BLEU": 0.07507124938500223,
+      "BERTScore-F1": 0.8711640238761902,
+      "n": 1044,
+      "strict_format_rate": 1.0,
+      "parsed_rate": 0.9990421455938697,
+      "truncated_rate": 0.0,
+      "abstain_rate": 0.08237547892720307,
+      "numeric_n": 121,
+      "numeric_outcomes": {
+        "correct": 11,
+        "scale_error": 2,
+        "wrong": 66,
+        "abstained": 41,
+        "malformed": 1,
+        "truncated": 0
+      },
+      "numeric_em": 0.09090909090909091,
+      "numeric_em_scale_lenient": 0.10743801652892562
+    },
+    "gold_base": {
+      "ROUGE-1": 0.33561867808902246,
+      "ROUGE-2": 0.10694032706374405,
+      "ROUGE-L": 0.1888043309818242,
+      "BLEU": 0.036100332984768495,
+      "BERTScore-F1": 0.8534746170043945,
+      "n": 300,
+      "strict_format_rate": 0.14,
+      "parsed_rate": 0.03,
+      "truncated_rate": 0.0,
+      "abstain_rate": 0.0,
+      "numeric_n": 31,
+      "numeric_outcomes": {
+        "correct": 1,
+        "scale_error": 1,
+        "wrong": 4,
+        "abstained": 0,
+        "malformed": 25,
+        "truncated": 0
+      },
+      "numeric_em": 0.03225806451612903,
+      "numeric_em_scale_lenient": 0.06451612903225806
+    },
+    "retrieved_ft": {
+      "ROUGE-1": 0.3945902028547695,
+      "ROUGE-2": 0.1339985327451534,
+      "ROUGE-L": 0.21185528407297163,
+      "BLEU": 0.06452720383706165,
+      "BERTScore-F1": 0.8644243478775024,
+      "n": 1044,
+      "strict_format_rate": 1.0,
+      "parsed_rate": 1.0,
+      "truncated_rate": 0.0,
+      "abstain_rate": 0.12164750957854406,
+      "numeric_n": 121,
+      "numeric_outcomes": {
+        "correct": 10,
+        "scale_error": 2,
+        "wrong": 59,
+        "abstained": 50,
+        "malformed": 0,
+        "truncated": 0
+      },
+      "numeric_em": 0.08264462809917356,
+      "numeric_em_scale_lenient": 0.09917355371900827
+    },
+    "retrieved_base": {
+      "ROUGE-1": 0.3111792696130669,
+      "ROUGE-2": 0.08767665635585795,
+      "ROUGE-L": 0.1717209023589011,
+      "BLEU": 0.027877320897089466,
+      "BERTScore-F1": 0.8467757105827332,
+      "n": 300,
+      "strict_format_rate": 0.10333333333333333,
+      "parsed_rate": 0.013333333333333334,
+      "truncated_rate": 0.0,
+      "abstain_rate": 0.0,
+      "numeric_n": 31,
+      "numeric_outcomes": {
+        "correct": 1,
+        "scale_error": 0,
+        "wrong": 2,
+        "abstained": 0,
+        "malformed": 28,
+        "truncated": 0
+      },
+      "numeric_em": 0.03225806451612903,
+      "numeric_em_scale_lenient": 0.03225806451612903
+    }
+  }
+}
