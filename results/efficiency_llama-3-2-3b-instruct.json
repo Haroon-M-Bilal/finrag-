@@ -1,0 +1,47 @@
+{
+  "gpu": "NVIDIA GeForce RTX 4080 Laptop GPU",
+  "total_vram_gb": 12.878086144,
+  "generator": "meta-llama/Llama-3.2-3B-Instruct",
+  "n_queries": 50,
+  "routed_fraction": 0.8,
+  "load_seconds": {
+    "embedder": 0.9105451107025146,
+    "reranker": 0.46445560455322266,
+    "generator": 5.903973579406738
+  },
+  "vram_gb": {
+    "after_embedder": 0.133448192,
+    "after_reranker": 0.133448192,
+    "after_generator": 2.488199168,
+    "peak_under_load": 5.318500352
+  },
+  "latency_seconds": {
+    "embed": {
+      "mean": 0.006147422790527344,
+      "median": 0.007757663726806641,
+      "p90": 0.010366606712341308
+    },
+    "route": {
+      "mean": 0.003713550567626953,
+      "median": 0.0,
+      "p90": 0.014688515663146976
+    },
+    "rerank": {
+      "mean": 0.49232362270355223,
+      "median": 0.48879480361938477,
+      "p90": 0.5526409149169922
+    },
+    "generate": {
+      "mean": 14.27043909072876,
+      "median": 11.58090341091156,
+      "p90": 27.954011726379395
+    },
+    "end_to_end": {
+      "mean": 14.772623686790466,
+      "median": 12.044153094291687,
+      "p90": 28.450316071510315
+    }
+  },
+  "generation_tokens_per_second": 13.186700059023206,
+  "mean_new_tokens": 188.18
+}
