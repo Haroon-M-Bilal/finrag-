@@ -32,3 +32,6 @@ Thumbs.db
 #   /meta/       frozen split, chunking config, manifests
 #   src/data/    corpus prep + split scripts
 #   results/     metrics, predictions, run files
+
+# cloned comparison repo (Cheng et al. HDRR) - not ours to vendor
+external/

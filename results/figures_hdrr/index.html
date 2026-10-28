@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FinRAG Results</title>
+<style>
+  :root { --ink:#1b1b1f; --mute:#6b6b74; --line:#e3e3e8; --bg:#fff; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+    font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;
+    -webkit-font-smoothing:antialiased; }
+  main { max-width:960px; margin:0 auto; padding:56px 24px 80px; }
+  h1 { font-size:30px; line-height:1.2; margin:0 0 8px; letter-spacing:-.02em; }
+  .sub { color:var(--mute); margin:0 0 10px; font-size:15px; }
+  .lede { font-size:17px; line-height:1.55; margin:28px 0 0;
+    padding:20px 22px; border-left:3px solid #2f6f4e; background:#f6f9f7;
+    border-radius:0 8px 8px 0; }
+  .lede b { font-variant-numeric:tabular-nums; }
+  figure { margin:52px 0 0; padding:0; }
+  figcaption { font-size:19px; font-weight:650; letter-spacing:-.01em;
+    margin:0 0 14px; display:flex; gap:12px; align-items:baseline; }
+  .n { font-size:12px; font-weight:700; color:var(--mute);
+    border:1px solid var(--line); border-radius:999px;
+    min-width:24px; height:24px; display:inline-flex; align-items:center;
+    justify-content:center; flex:none; }
+  img { width:100%; height:auto; display:block;
+    border:1px solid var(--line); border-radius:10px; }
+  figure p { color:var(--mute); font-size:14.5px; line-height:1.6;
+    margin:14px 0 0; max-width:74ch; }
+  footer { margin-top:64px; padding-top:22px; border-top:1px solid var(--line);
+    color:var(--mute); font-size:13.5px; }
+  @media print {
+    main { padding:0; max-width:none; }
+    figure { break-inside:avoid; margin-top:30px; }
+    .lede { background:none; }
+  }
+  @media (prefers-color-scheme:dark) {
+    :root:not([data-theme="light"]) { --ink:#ececf0; --mute:#9a9aa4;
+      --line:#2e2e36; --bg:#141418; }
+    :root:not([data-theme="light"]) .lede { background:#17201b; }
+    :root:not([data-theme="light"]) img { background:#fff; }
+  }
+</style></head>
+<body><main>
+  <h1>FinRAG — results against HDRR (2026)</h1>
+  <p class="sub">Haroon M Bilal · Muhammad Bin Sarwar · 28 October 2026</p>
+  <p class="lede">On 258 held-out FinDER queries scored by <b>Cheng et al.'s own
+  GPT-4.1 judge with their own rubric and prompt</b>, FinRAG reaches
+  <b>6.02/10</b> against HDRR's <b>7.64</b>. Our grader was verified against 40
+  of their published answers: 90% exact agreement, 100% within one point,
+  r&nbsp;=&nbsp;0.993. The 1.61-point gap is <b>0.68 retrieval</b> and
+  <b>0.94 generator capacity</b>. On retrieval itself — which their paper never
+  reports — FinRAG reaches <b>NDCG@10 0.599</b>, and a zero-cost router matches
+  their per-query LLM router's decision on <b>100%</b> of queries where both
+  commit.</p>
+  <figure>
+    <figcaption><span class="n">1</span>Answer quality against every published system</figcaption>
+    <img src="01_systems.png" alt="Answer quality against every published system">
+    <p>Same 258 held-out queries, same judge, same rubric. FinRAG runs entirely on one laptop GPU; every other system generates its answers with a frontier API model.</p>
+  </figure>
+  <figure>
+    <figcaption><span class="n">2</span>Is the difference real?</figcaption>
+    <img src="02_deltas.png" alt="Is the difference real?">
+    <p>Every system is scored on identical queries, so the differences can be resampled directly. FinRAG is statistically tied with Agentic RAG and trails the rest.</p>
+  </figure>
+  <figure>
+    <figcaption><span class="n">3</span>The gap splits into two very different problems</figcaption>
+    <img src="03_decomposition.png" alt="The gap splits into two very different problems">
+    <p>0.67 points are lost to retrieval, which is fixable. 0.93 points remain even with perfect evidence in front of the model — that is a 7B model on a laptop against a frontier API model, i.e. a hardware budget, not a method flaw.</p>
+  </figure>
+  <figure>
+    <figcaption><span class="n">4</span>Retrieval — the metric their paper never reports</figcaption>
+    <img src="04_retrieval.png" alt="Retrieval — the metric their paper never reports">
+    <p>HDRR publishes only end-to-end judge scores, so there is no published retrieval number on FinDER to compare against. Every step here is measured on filings never seen in training.</p>
+  </figure>
+  <figure>
+    <figcaption><span class="n">5</span>Matching their LLM router at zero cost per query</figcaption>
+    <img src="05_router.png" alt="Matching their LLM router at zero cost per query">
+    <p>HDRR calls an LLM on every query to extract the company ticker. Replacing it with SEC's public company-name table plus an acronym stoplist recovers most of that capability and costs nothing to run.</p>
+  </figure>
+  <figure>
+    <figcaption><span class="n">6</span>What changed this week</figcaption>
+    <img src="06_progress.png" alt="What changed this week">
+    <p>No retraining was involved: 5.54 → 6.02 came from feeding the generator more retrieved context and fixing which company it searches.</p>
+  </figure>
+  <figure>
+    <figcaption><span class="n">7</span>How the scores are distributed</figcaption>
+    <img src="07_distribution.png" alt="How the scores are distributed">
+    <p>FinRAG scores 8+ on 48% of queries, close to HDRR's quality when it works. Its losses are concentrated in outright failures rather than mediocre answers, which is the signature of missing evidence rather than weak reasoning.</p>
+  </figure>
+  <footer>All queries come from filings never seen during training.
+  Confidence intervals are 10,000-sample paired bootstraps over identical
+  queries.</footer>
+</main></body></html>

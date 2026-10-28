@@ -1,0 +1,79 @@
+{
+  "shared": 259,
+  "their_system": "hybrid",
+  "rows": [
+    {
+      "name": "HDRR LLM router (hybrid)",
+      "routed": 249,
+      "correct": 246,
+      "n": 259,
+      "coverage": 0.9613899613899614,
+      "precision": 0.9879518072289156,
+      "end_to_end": 0.9498069498069498,
+      "wrong_samples": [
+        [
+          "a5da9dd9",
+          "RL",
+          "KMX"
+        ],
+        [
+          "b0597a7c",
+          "ETSY",
+          "EBAY"
+        ],
+        [
+          "dd6f1e96",
+          "CME",
+          "CBOE"
+        ]
+      ]
+    },
+    {
+      "name": "ours: regex only",
+      "routed": 202,
+      "correct": 202,
+      "n": 259,
+      "coverage": 0.7799227799227799,
+      "precision": 1.0,
+      "end_to_end": 0.7799227799227799,
+      "wrong_samples": []
+    },
+    {
+      "name": "ours: SEC names + stoplist",
+      "routed": 234,
+      "correct": 231,
+      "n": 259,
+      "coverage": 0.9034749034749034,
+      "precision": 0.9871794871794872,
+      "end_to_end": 0.8918918918918919,
+      "wrong_samples": [
+        [
+          "65456492",
+          "ARE",
+          "PFG"
+        ],
+        [
+          "a5da9dd9",
+          "RL",
+          "KMX"
+        ],
+        [
+          "b0597a7c",
+          "ETSY",
+          "EBAY"
+        ]
+      ]
+    }
+  ],
+  "agreement": {
+    "both_routed": 232,
+    "agreed": 232,
+    "ours_only": 2,
+    "theirs_only": 17
+  },
+  "their_status": {
+    "filename_fallback": 279,
+    "fallback_no_files_on_disk": 6,
+    "fallback_no_tickers": 3
+  }
+}

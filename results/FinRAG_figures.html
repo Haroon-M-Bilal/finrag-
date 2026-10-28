@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>FinRAG — Figures</title>
+<style>
+  @page { size: A4; margin: 16mm; }
+  body { font-family: "Segoe UI", Calibri, Arial, sans-serif;
+         font-size: 11pt; color: #1a1a1a; max-width: 180mm;
+         margin: 0 auto; padding: 8mm; }
+  h1 { font-size: 19pt; margin: 0 0 8mm; border-bottom: 2px solid #333;
+       padding-bottom: 2mm; }
+  h2 { font-size: 12.5pt; margin: 0 0 3mm; page-break-after: avoid; }
+  figure { margin: 0 0 11mm; page-break-inside: avoid; }
+  figure img { max-width: 100%; border: 1px solid #ddd; display: block; }
+</style>
+</head>
+<body>
+
+<h1>FinRAG — Figures</h1>
+
+<figure>
+  <h2>1. Pipeline architecture</h2>
+  <img src="figures/fig_v4_pipeline.png" alt="Pipeline">
+</figure>
+
+<figure>
+  <h2>2. Retrieval ablation — NDCG@10, 1,088 held-out test questions</h2>
+  <img src="figures/fig_v4_ablation.png" alt="Ablation">
+</figure>
+
+<figure>
+  <h2>3. Component contributions — 853 routed queries</h2>
+  <img src="figures/fig_v4_routed_chain.png" alt="Routed chain">
+</figure>
+
+<figure>
+  <h2>4. Where retrieval fails</h2>
+  <img src="figures/fig_v4_failure_modes.png" alt="Failure modes">
+</figure>
+
+<figure>
+  <h2>5. Recall@k — 853 routed queries</h2>
+  <img src="figures/fig_v4_recall_curve.png" alt="Recall curve">
+</figure>
+
+<figure>
+  <h2>6. Reranking without routing — depth sweep</h2>
+  <img src="figures/fig_v4_rerank_depth.png" alt="Rerank depth">
+</figure>
+
+<figure>
+  <h2>7. Effect of fine-tuning — ROUGE-L, gold context</h2>
+  <img src="figures/fig_v4_gen_finetuning.png" alt="Fine-tuning">
+</figure>
+
+<figure>
+  <h2>8. Gold vs retrieved context — retrieval-attributable gap</h2>
+  <img src="figures/fig_v4_gen_gold_vs_retrieved.png" alt="Gold vs retrieved">
+</figure>
+
+<figure>
+  <h2>9. Numeric exact-match — financial calculation, n=121</h2>
+  <img src="figures/fig_v4_gen_numeric.png" alt="Numeric EM">
+</figure>
+
+<figure>
+  <h2>10. Numeric outcome breakdown</h2>
+  <img src="figures/fig_v4_gen_numeric_breakdown.png" alt="Numeric breakdown">
+</figure>
+
+</body>
+</html>

@@ -1,0 +1,88 @@
+{
+  "their_query_ids": 1354,
+  "our_test_questions": 1088,
+  "usable": 259,
+  "leaked_into_our_train": 1004,
+  "not_in_our_labelled_set": 91,
+  "usable_numeric_trusted": 27,
+  "systems": [
+    {
+      "system": "agentic",
+      "n_all": 1354,
+      "mean_all": 6.372968980797637,
+      "fail_all": 0.17725258493353027,
+      "correct_all": 0.5192023633677991,
+      "n_subset": 259,
+      "mean_subset": 6.2007722007722,
+      "fail_subset": 0.2084942084942085,
+      "correct_subset": 0.4980694980694981
+    },
+    {
+      "system": "cbrllm",
+      "n_all": 1354,
+      "mean_all": 7.276957163958641,
+      "fail_all": 0.09453471196454949,
+      "correct_all": 0.6477104874446086,
+      "n_subset": 259,
+      "mean_subset": 7.455598455598456,
+      "fail_subset": 0.0694980694980695,
+      "correct_subset": 0.6563706563706564
+    },
+    {
+      "system": "cbrmeta",
+      "n_all": 1354,
+      "mean_all": 6.920236336779912,
+      "fail_all": 0.11742983751846381,
+      "correct_all": 0.5827178729689808,
+      "n_subset": 259,
+      "mean_subset": 6.833976833976834,
+      "fail_subset": 0.1274131274131274,
+      "correct_subset": 0.5791505791505791
+    },
+    {
+      "system": "hybrid",
+      "n_all": 1354,
+      "mean_all": 7.553175775480059,
+      "fail_all": 0.06573116691285082,
+      "correct_all": 0.6809453471196455,
+      "n_subset": 259,
+      "mean_subset": 7.590733590733591,
+      "fail_subset": 0.06177606177606178,
+      "correct_subset": 0.667953667953668
+    },
+    {
+      "system": "index-solution",
+      "n_all": 1354,
+      "mean_all": 6.039881831610044,
+      "fail_all": 0.2259970457902511,
+      "correct_all": 0.49409158050221563,
+      "n_subset": 259,
+      "mean_subset": 5.988416988416988,
+      "fail_subset": 0.23166023166023167,
+      "correct_subset": 0.4671814671814672
+    },
+    {
+      "system": "no-rerank-index-solution",
+      "n_all": 1354,
+      "mean_all": 4.974150664697193,
+      "fail_all": 0.3522895125553914,
+      "correct_all": 0.35745937961595275,
+      "n_subset": 259,
+      "mean_subset": 5.2664092664092665,
+      "fail_subset": 0.30115830115830117,
+      "correct_subset": 0.38223938223938225
+    },
+    {
+      "system": "unknown",
+      "n_all": 1354,
+      "mean_all": 6.300590841949778,
+      "fail_all": 0.11299852289512555,
+      "correct_all": 0.44977843426883307,
+      "n_subset": 259,
+      "mean_subset": 6.555984555984556,
+      "fail_subset": 0.06563706563706563,
+      "correct_subset": 0.47104247104247104
+    }
+  ],
+  "judge": "gpt-4.1 (from their benchmark filenames)"
+}
