@@ -75,11 +75,38 @@ BASE = sys.argv[1] if len(sys.argv) > 1 else "Qwen/Qwen2.5-3B-Instruct"
 LIMIT = int(sys.argv[2]) if len(sys.argv) > 2 else None
 TAG = BASE.split("/")[-1].lower().replace(".", "-")
 ADAPTER = str(CKPT / f"qlora-{TAG}-v4")
-RETRIEVED_RUN = RUNDIR / "ft_dense_ticker_rerank_at_50.trec"
 
-TOPK_CTX = 3
-MAX_NEW = 768
-BATCH = 4
+# ----------------------------------------------------------------- v2 pipeline
+# The paper's headline comparison against HDRR uses SEC-name routing at context
+# depth 10; this table was originally produced with the ticker-regex run at
+# depth 3. Reporting both in one paper describes two different systems, so the
+# pipeline is now selectable and the choice is carried into every output name.
+#
+#   python -u src/generate/run_generation_eval.py <model>                  # v1, as published
+#   python -u src/generate/run_generation_eval.py <model> "" v2            # v2 pipeline
+#   python -u src/generate/run_generation_eval.py <model> "" v2 10 6144 2  # explicit
+#
+# Depth and the input budget move together: chunks are 448 BGE tokens, so past
+# roughly six of them a 3072-token budget silently truncates the context and the
+# extra retrieval depth buys nothing.
+PIPELINE = sys.argv[3] if len(sys.argv) > 3 else "v1"
+if PIPELINE not in ("v1", "v2"):
+    raise SystemExit("third argument must be v1 or v2")
+
+if PIPELINE == "v2":
+    RETRIEVED_RUN = RUNDIR / "ft_dense_ticker_rerank_at_50_v2.trec"
+    TOPK_CTX = int(sys.argv[4]) if len(sys.argv) > 4 else 10
+    MAXLEN = int(sys.argv[5]) if len(sys.argv) > 5 else 6144
+    BATCH = int(sys.argv[6]) if len(sys.argv) > 6 else 2
+    MAX_NEW = int(sys.argv[7]) if len(sys.argv) > 7 else 1024
+    SUFFIX = "_v2"
+else:
+    RETRIEVED_RUN = RUNDIR / "ft_dense_ticker_rerank_at_50.trec"
+    TOPK_CTX = 3
+    MAXLEN = 3072
+    BATCH = 4
+    MAX_NEW = 768
+    SUFFIX = ""
 FLUSH = 40
 BASE_SUBSAMPLE = 300
 DEV = "cuda" if torch.cuda.is_available() else "cpu"
@@ -202,6 +229,7 @@ def main():
     if not Path(ADAPTER).exists():
         raise SystemExit(f"adapter not found: {ADAPTER}")
     print(f"MODEL: {BASE}\nADAPTER: {ADAPTER}\ndevice: {DEV}")
+    print(f"PIPELINE: {PIPELINE}   run: {RETRIEVED_RUN.name}\nTOPK_CTX: {TOPK_CTX}   MAXLEN: {MAXLEN}   BATCH: {BATCH}   MAX_NEW: {MAX_NEW}")
 
     corpus = {r["_id"]: r["text"] for r in jl(PROC / "corpus.jsonl")}
     numeric = {r["_id"]: r for r in jl(PROC / "answers_numeric.jsonl")}
@@ -218,7 +246,7 @@ def main():
     print(f"eval questions: {len(rows)}   numeric (trusted): {n_trusted}")
     print(f"base conditions subsampled to {n_base} questions")
 
-    cache_path = RESULTS / f"preds_{TAG}_v4.json"
+    cache_path = RESULTS / f"preds_{TAG}_v4{SUFFIX}.json"
     cache = json.load(open(cache_path)) if cache_path.exists() else {}
 
     keys = []
@@ -279,7 +307,7 @@ def main():
             batch = todo[s:s + BATCH]
             texts = [prompt_for(r, condition) for r in batch]
             enc = tok(texts, return_tensors="pt", padding=True,
-                      truncation=True, max_length=3072).to(model.device)
+                      truncation=True, max_length=MAXLEN).to(model.device)
             with torch.no_grad():
                 if use_ft:
                     out = model.generate(**enc, max_new_tokens=MAX_NEW,
@@ -393,12 +421,14 @@ def main():
 
     out = "\n".join(L) + "\n"
     print("\n" + out)
-    (RESULTS / f"generation_{TAG}_v4.md").write_text(out, encoding="utf-8")
-    json.dump({"model": BASE, "max_new_tokens": MAX_NEW, "topk_ctx": TOPK_CTX,
+    (RESULTS / f"generation_{TAG}_v4{SUFFIX}.md").write_text(out, encoding="utf-8")
+    json.dump({"model": BASE, "pipeline": PIPELINE,
+               "run_file": str(RETRIEVED_RUN), "maxlen": MAXLEN,
+               "max_new_tokens": MAX_NEW, "topk_ctx": TOPK_CTX,
                "n_questions": len(rows), "base_subsample": n_base,
                "numeric_rule": "rounding-aware", "report": report},
-              open(RESULTS / f"generation_{TAG}_v4.json", "w"), indent=2)
-    print(f"saved -> results/generation_{TAG}_v4.md / .json")
+              open(RESULTS / f"generation_{TAG}_v4{SUFFIX}.json", "w"), indent=2)
+    print(f"saved -> results/generation_{TAG}_v4{SUFFIX}.md / .json")
 
 
 if __name__ == "__main__":
