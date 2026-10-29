@@ -36,11 +36,12 @@ regex, context depth 3) while the headline comparison uses the **new** one
 (SEC-name routing, depth 10). One paper currently describes two systems.
 
 ```powershell
-python -u src\generate\run_generation_eval.py Qwen/Qwen2.5-3B-Instruct "" v2
-python -u src\generate\run_generation_eval.py meta-llama/Llama-3.2-3B-Instruct "" v2
-python -u src\generate\run_generation_eval.py mistralai/Mistral-7B-Instruct-v0.3 "" v2
+python -u src\generate\run_generation_eval.py Qwen/Qwen2.5-3B-Instruct 0 v2
+python -u src\generate\run_generation_eval.py meta-llama/Llama-3.2-3B-Instruct 0 v2
+python -u src\generate\run_generation_eval.py mistralai/Mistral-7B-Instruct-v0.3 0 v2
 ```
 
+The second argument is the question limit; 0 means no limit.
 About an hour each. Crash-safe — predictions flush to disk and reload, so a
 restart costs minutes. Writes `results/generation_<tag>_v4_v2.{md,json}`,
 leaving the v1 files intact. Then update Table IV in `paper/paper.tex` and say

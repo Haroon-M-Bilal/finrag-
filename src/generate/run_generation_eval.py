@@ -72,7 +72,10 @@ RUNDIR = RESULTS / "runs"
 RESULTS.mkdir(exist_ok=True)
 
 BASE = sys.argv[1] if len(sys.argv) > 1 else "Qwen/Qwen2.5-3B-Instruct"
-LIMIT = int(sys.argv[2]) if len(sys.argv) > 2 else None
+# an empty or zero second argument means "no limit"; int("") raises, and
+# the pipeline argument that follows makes a placeholder necessary
+LIMIT = (int(sys.argv[2]) if len(sys.argv) > 2 and sys.argv[2].strip()
+         else None) or None
 TAG = BASE.split("/")[-1].lower().replace(".", "-")
 ADAPTER = str(CKPT / f"qlora-{TAG}-v4")
 
