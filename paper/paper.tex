@@ -374,7 +374,8 @@ and $3.2\times$ over the fine-tuned dense retriever alone.
 
 \begin{table}[t]
 \caption{Retrieval on 1{,}088 held-out questions from 98 filings never seen in
-training. Retrieval searches the full 181{,}867-chunk corpus. FT = fine-tuned.}
+training. Retrieval searches the full 181{,}867-chunk corpus; the final row is
+the configuration carried into Table~\ref{tab:vshdrr}. FT = fine-tuned.}
 \label{tab:retrieval}
 \centering
 \footnotesize
@@ -449,17 +450,31 @@ lookup. Where both routers commit to a filing, they choose the same one on
 \label{fig:router}
 \end{figure}
 
-\subsection{Generation}
+\subsection{Generator selection}
+\label{sec:genselect}
 Table~\ref{tab:generation} reports the three fine-tuned generators on the
-held-out questions, under retrieved context and under gold context. QLoRA
-raises ROUGE-L by 20--24\% relative over the corresponding base model for every
-backbone. Mistral-7B is strongest on surface overlap; Qwen2.5-3B is strongest
-on numeric exact-match despite being less than half the size, which suggests
-numeric fidelity and fluency are not the same capability.
+held-out questions, under retrieved context and under gold context. This
+experiment selected the generator used in the rest of the paper, and was
+therefore run before the routing improvement of Section~\ref{sec:routing}
+existed: it uses ticker-regex routing at context depth 3, whereas the
+system evaluated in Section~\ref{sec:vshdrr} uses SEC-name routing at depth
+10. All three models are compared under identical conditions, so the ranking
+between them is unaffected; the newer pipeline would raise the retrieved rows
+by roughly 0.01 ROUGE-L without reordering them. We report the selection
+configuration rather than restating it under the final one, since the choice
+was made on these numbers.
+
+QLoRA raises ROUGE-L by 20--24\% relative over the corresponding base model
+for every backbone. Mistral-7B is strongest on surface overlap; Qwen2.5-3B is
+strongest on numeric exact-match despite being less than half the size, which
+suggests numeric fidelity and fluency are not the same capability. We take
+Mistral-7B forward on that basis.
 
 \begin{table}[t]
-\caption{Generation on held-out questions. Numeric EM is computed on the
-trusted numeric subset ($n=121$) with a rounding-aware criterion.}
+\caption{Generator selection on held-out questions, under
+\textbf{ticker-regex routing at context depth 3} (see
+Section~\ref{sec:genselect}). Numeric EM is computed on the trusted numeric
+subset ($n=121$) with a rounding-aware criterion.}
 \label{tab:generation}
 \centering
 \small
@@ -488,9 +503,10 @@ from their Agentic RAG configuration and loses to the remaining three.
 
 \begin{table}[t]
 \caption{Paired comparison on 258 shared held-out queries, scored by HDRR's own
-GPT-4.1 judge with their rubric and prompt. CIs from 10{,}000 paired bootstrap
-resamples. $\Delta$ is ours minus theirs; W/L/T counts queries where our score was
-strictly higher, strictly lower, or equal.}
+GPT-4.1 judge with their rubric and prompt. FinRAG here is the final system:
+\textbf{SEC-name routing at context depth 10}. CIs from 10{,}000 paired
+bootstrap resamples. $\Delta$ is ours minus theirs; W/L/T counts queries where
+our score was strictly higher, strictly lower, or equal.}
 \label{tab:vshdrr}
 \centering
 \footnotesize
@@ -629,6 +645,14 @@ bias is unfavourable to us.
 Their published scores were produced several months before ours. Our
 replication bounds drift at $+0.05$ on 40 queries, but the two score sets are
 not from a single judging run.
+
+The generator-selection experiment of Section~\ref{sec:genselect} was run
+under the pipeline as it stood at the time (ticker routing, depth 3), not
+under the final configuration. The three generators are compared under
+identical conditions there, so the selection itself is sound, but the
+absolute values in Table~\ref{tab:generation} are not directly comparable to
+the final system's. We estimate the final pipeline would raise those
+retrieved rows by roughly 0.01 ROUGE-L.
 
 Our relevance labels are induced rather than human-annotated. The coverage
 criterion is conservative and will miss chunks that contain an answer without

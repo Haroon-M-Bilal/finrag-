@@ -29,23 +29,33 @@ We lose on answer quality and report it as a loss. Their answers come from a
 frontier API model; ours from a 4-bit 7B on a laptop. Do not try to reframe
 this into a win.
 
-## The one job left
+## No GPU job outstanding
 
-The three-model generation table was produced on the **old** pipeline (ticker
-regex, context depth 3) while the headline comparison uses the **new** one
-(SEC-name routing, depth 10). One paper currently describes two systems.
+Table IV (generator selection) was run under ticker routing at depth 3, before
+the SEC-name router existed; the headline comparison uses the final pipeline.
+This was going to be fixed by re-running all three generators under v2 — then
+the cost was measured properly:
 
-```powershell
-python -u src\generate\run_generation_eval.py Qwen/Qwen2.5-3B-Instruct 0 v2
-python -u src\generate\run_generation_eval.py meta-llama/Llama-3.2-3B-Instruct 0 v2
-python -u src\generate\run_generation_eval.py mistralai/Mistral-7B-Instruct-v0.3 0 v2
-```
+| scope | GPU cost |
+|---|---|
+| full eval set, all four conditions, 3 models | **94 h** |
+| 258-query subset, all conditions | 36 h |
+| 258-query subset, `retrieved_ft` only | 9.5 h |
 
-The second argument is the question limit; 0 means no limit.
-About an hour each. Crash-safe — predictions flush to disk and reload, so a
-restart costs minutes. Writes `results/generation_<tag>_v4_v2.{md,json}`,
-leaving the v1 files intact. Then update Table IV in `paper/paper.tex` and say
-in the caption which pipeline it describes.
+A measured +0.01 ROUGE-L is what any of those buys, and no conclusion depends
+on Table IV's absolute values. The table is a *selection* experiment, run
+before the final pipeline existed — that is a chronology, not an
+inconsistency. Re-running only `retrieved_ft` would also leave the table
+mixing v2 retrieved rows with v1 gold rows, which reads worse than an honest
+caption.
+
+So the paper now names the configuration in every results caption and states
+the seam in Limitations. **Do not launch this re-run.** If a reviewer ever
+demands it, probe first: run 20 questions, time it, multiply, then decide.
+
+Timing facts, measured on this machine: depth 3 at batch 4 is 17.7 s per
+generation; depth 10 at batch 2 is 66.3 s — 3.7x slower, because the context
+is longer and the batch halves to fit VRAM.
 
 ## Things already ruled out — do not redo
 
